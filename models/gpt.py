@@ -6,13 +6,9 @@ import torch
 
 __all__=['nanoGPT']
 
-# config_keys = [k for k,v in globals().items() if not k.startswith('_') and isinstance(v, (int, float, bool, str))]
-# exec(open('/home/pandaa2/IBM_AIRC_LLM/CompOptim/config/train_gpt2.py').read()) # overrides from your config file
 exec(open('./config/train_shakespeare_char.py').read())
-# config = {k: globals()[k] for k in config_keys} # will be useful for logging
 
 # attempt to derive vocab_size from the dataset
-# data_dir = '/home/pandaa2/IBM_AIRC_LLM/CompOptim/data/OpenWebText' # to be changed everytime if used a different setting
 data_dir = './data/Shakespeare'
 meta_path = os.path.join(data_dir, 'meta.pkl')
 meta_vocab_size = None
@@ -26,7 +22,6 @@ init_from = globals().get('init_from', 'scratch')
 out_dir = "./results/"+globals().get('out_dir')
 
 if init_from == 'scratch':
-    # print("Initializing a new model from scratch")
     model_args = dict(
         n_layer=n_layer,
         n_head=n_head,
@@ -35,7 +30,6 @@ if init_from == 'scratch':
         vocab_size=meta_vocab_size if meta_vocab_size is not None else 50304,
         dropout=dropout
     )
-    # model_args['vocab_size'] = meta_vocab_size if meta_vocab_size is not None else 50304
     gptconf = GPTConfig(**model_args)
 elif init_from == 'resume':
     print(f"Resuming training from {out_dir}")
@@ -57,20 +51,8 @@ elif init_from == 'resume':
         
         # Create the model
         gptconf = GPTConfig(**model_args)
-        # model = GPT(gptconf)
-        # state_dict = checkpoint['model']
-        
-        # # Fix the keys of the state dictionary
-        # unwanted_prefix = '_orig_mod.'
-        # for k, v in list(state_dict.items()):
-        #     if k.startswith(unwanted_prefix):
-        #         state_dict[k[len(unwanted_prefix):]] = state_dict.pop(k)
-        
-        # model.load_state_dict(state_dict)
-        # iter_num = checkpoint['iter_num']
-        # best_val_loss = checkpoint['best_val_loss']
+
 elif init_from.startswith('gpt2'):
-    # print(f"Initializing from OpenAI GPT-2 weights: {init_from}")
     # initialize from OpenAI GPT-2 weights
     model_args = {}
     override_args = dict(dropout=dropout)

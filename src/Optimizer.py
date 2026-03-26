@@ -9,8 +9,7 @@ The Optimizer class implements various different methods for optimization.
 class Optimizer(CommNet):
 
 	def __init__(self,model,compressor,optim_name="DistributedAdam",comm_set=['x'],device="cpu",topology="ring",devices=[],nvlink=False,lr_decay="none",lr=0.001, k=1,model_name = ""):
-		if optim_name =="HeavyBall" or optim_name =="NewAlg" or optim_name == "DistributedAdam" or optim_name == "DistributedAdaGrad" or optim_name == "NewAlg2" or \
-			optim_name == "CDProxSGT" or optim_name=="DoCoM" or optim_name=="SQuARM-SGD":
+		if optim_name == "DistributedAdam" or optim_name == "DistributedAdaGrad" or optim_name == "CDProxSGT" or optim_name=="SQuARM-SGD":
 			# we are going to do compression in the step and then communicate it
 			super().__init__(topology=topology,comms=device,devices=devices,nvlink=nvlink,compressor=NoneCompressor())
 		else:
@@ -180,88 +179,6 @@ class Optimizer(CommNet):
 				if self.device != "cpu" and not self.nvlink:
 					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
 		
-		elif self.optim_name == "NewAlg":
-			# Set up Adam specific scalars.
-			#self.lr = 0.001
-			self.beta1 = 0.9
-			self.beta2 = 0.999
-			self.eps = 1e-8
-			self.mu = 1e-4
-			self.epoch = 0
-			self.gamma = 0.5
-
-			# Set up the initial dictionaries for our data.
-			param_fields = ['x','x_hat','g','g_tilde','g_tilde_prev','m','u','u_hat','x_prev','x_bar','x_bar_prev','u_prev']#,'delta','tau']
-			self.recv_data["reduced"] = {}
-			self.recv_data["rec_field"] = {}
-			self.recv_data["cpu_holder"] = {}
-			for field in param_fields:
-				self.data[field] = {}
-
-			# Set up each variable torch tensor.
-			for name,param in self.model.named_parameters():
-				self.data['x'][name] = param.data.detach().clone().to(self.device)
-				self.data['x_hat'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				# self.data['tau'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				# self.data['delta'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-
-				
-				self.data['m'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['u'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['u_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['u_hat'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["reduced"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["rec_field"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				if self.device != "cpu" and not self.nvlink:
-					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
-		
-		elif self.optim_name == "HeavyBall":
-			# Set up Adam specific scalars.
-			#self.lr = 0.02
-			self.beta1 = 0.9
-			self.beta2 = 0.999
-			self.eps = 1e-8
-			self.mu = 1e-4
-			self.epoch = 0
-			self.gamma_g = 1
-			self.gamma_x = 1
-
-			self.comp2 = TopKCompressor(0.3)
-
-
-			# Set up the initial dictionaries for our data.
-			param_fields = ['x','g','g_tilde','g_tilde_prev','m','x_bar','x_bar_prev','g_bar','g_bar_prev','delta_x','delta_g']
-			self.recv_data["reduced"] = {}
-			self.recv_data["rec_field"] = {}
-			self.recv_data["cpu_holder"] = {}
-			for field in param_fields:
-				self.data[field] = {}
-
-			# Set up each variable torch tensor.
-			for name,param in self.model.named_parameters():
-				self.data['x'][name] = param.data.detach().clone().to(self.device)
-				self.data['g'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_bar'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_bar_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['delta_x'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['delta_g'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				
-				self.data['m'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["reduced"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["rec_field"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				if self.device != "cpu" and not self.nvlink:
-					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
-		
 		elif self.optim_name == "AdamW":
 
 			# Set up Adam specific scalars.
@@ -293,44 +210,6 @@ class Optimizer(CommNet):
 				if self.device != "cpu" and not self.nvlink:
 					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
 		# If we have nothing, return nothing.
-		elif self.optim_name == "NewAlg2":
-			# Set up Adam specific scalars.
-			#self.lr = 0.001
-			self.beta1 = 0.9
-			self.beta2 = 0.999
-			self.eps = 1e-8
-			self.mu = 1e-4
-			self.epoch = 0
-			self.gamma = 0.5
-
-			# Set up the initial dictionaries for our data.
-			param_fields = ['x','x_hat','tau','g','g_tilde','g_tilde_prev','m','u','u_hat','x_prev','x_bar','x_bar_prev','u_prev']
-			self.recv_data["reduced"] = {}
-			self.recv_data["rec_field"] = {}
-			self.recv_data["cpu_holder"] = {}
-			for field in param_fields:
-				self.data[field] = {}
-
-			# Set up each variable torch tensor.
-			for name,param in self.model.named_parameters():
-				self.data['x'][name] = param.data.detach().clone().to(self.device)
-				self.data['x_hat'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['tau'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['u_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				
-				self.data['m'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['u'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['u_hat'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["reduced"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["rec_field"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				if self.device != "cpu" and not self.nvlink:
-					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
 
 		elif self.optim_name == "CDProxSGT":
 			# Set up Adam specific scalars.
@@ -403,52 +282,6 @@ class Optimizer(CommNet):
 				self.recv_data["rec_field"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
 				if self.device != "cpu" and not self.nvlink:
 					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
-
-		elif self.optim_name == "DoCoM":
-			# Set up Adam specific scalars.
-			#self.lr = 0.02
-			self.beta1 = 0.01
-			self.beta2 = 0.999
-			self.eps = 1e-8
-			self.mu = 1e-4
-			self.epoch = 0
-			self.gamma_g = 0.2
-			self.gamma_x = 0.2
-			self.model_prev = None # we want to save the previous model params.
-
-			self.comp2 = TopKCompressor(0.3)
-
-
-			# Set up the initial dictionaries for our data.
-			param_fields = ['x','g','g_tilde','g_tilde_prev','m','x_bar','x_bar_prev','g_bar','g_bar_prev','delta_x','m_prev','g_mod','g_mod_prev']
-			self.recv_data["reduced"] = {}
-			self.recv_data["rec_field"] = {}
-			self.recv_data["cpu_holder"] = {}
-			for field in param_fields:
-				self.data[field] = {}
-
-			# Set up each variable torch tensor.
-			for name,param in self.model.named_parameters():
-				self.data['x'][name] = param.data.detach().clone().to(self.device)
-				self.data['g'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_tilde_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['x_bar_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_bar'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_bar_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['delta_x'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['m_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_mod'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.data['g_mod_prev'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-
-				
-				self.data['m'][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["reduced"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				self.recv_data["rec_field"][name] = torch.zeros_like(self.data['x'][name]).to(self.device)
-				if self.device != "cpu" and not self.nvlink:
-					self.recv_data["cpu_holder"][name] = torch.zeros_like(self.data['x'][name]).to("cpu")
-
 		else:
 
 			return
@@ -600,11 +433,7 @@ class Optimizer(CommNet):
 						self.data['delta_g'][name] = self.opt_compressor.decompress(compress_final[1:])
 
 						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_g',name=name,comm_set=self.comm_set) 
-						#self.data['g'][name] = self.data['g'][name] + self.gamma*(self.data['delta_g'][name])
-
-
-						self.neighbor_reduce_cond(field='g_bar',name=name,comm_set=self.comm_set) 
+						self.neighbor_reduce_cond(field='g_bar',name=name,comm_set=self.comm_set)
 						self.data['g'][name] = self.data['g'][name]+0.5*(self.data['g_bar'][name]-self.data['g_bar_prev'][name])
 					else:
 						self.neighbor_reduce_cond(field='g', name=name, comm_set=self.comm_set)
@@ -628,86 +457,14 @@ class Optimizer(CommNet):
 					self.data['x'][name] -= learning_rate*(self.data['m'][name]/(torch.sqrt(self.data['u_prev'][name]+self.eps)))
 					if self.opt_compressor.get_name() != "none":
 
-
 						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
 						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
 						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
-
 
 						#here we try doing sparse doing this little tweak:
 						compress_final = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
 						self.data['delta_x'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
 
-						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_x',name=name,comm_set=self.comm_set) 
-						#self.data['x'][name] = self.data['x'][name] + self.gamma*(self.data['delta_x'][name])
-
-						#\sum WjiXj - x_bar
-						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set)
-						self.data['x'][name] = self.data['x'][name]+self.gamma*(self.data['x_bar'][name]-self.data['x_bar_prev'][name])
-
-					else:
-						self.neighbor_reduce_cond(field='x',name=name,comm_set=self.comm_set)
-
-					# self.neighbor_reduce_cond(field='x', name=name, comm_set=self.comm_set)
-
-					param.copy_(self.data['x'][name])
-					param.grad.copy_(self.data['g'][name])
-					self.steps += 1
-					
-		
-		elif self.optim_name == "NewAlg":
-			
-			self.epoch += 1
-			for name,param in self.model.named_parameters():
-				with torch.no_grad():
-					learning_rate = self.lr
-					if self.lr_decay == "cosine":
-						learning_rate = self.get_lr(self.steps)
-					
-					self.data['g_tilde'][name] = param.grad.data.detach().clone()
-					self.data['g'][name] = self.data['g'][name] - \
-							self.data['g_tilde_prev'][name] + self.data['g_tilde'][name]
-					self.data['g_tilde_prev'][name] = self.data['g_tilde'][name].clone()
-					self.neighbor_reduce_cond(field='g',name=name,comm_set=self.comm_set)
-					
-					self.data['m'][name] = (self.beta1 * self.data['m'][name]) + \
-							((1-self.beta1) * self.data['g'][name])
-					self.data['u_hat'][name] = self.beta2*self.data['u_hat'][name] + \
-							((1-self.beta2) * (self.data['g'][name] * self.data['g'][name]))
-					self.data['u_prev'][name] = self.data['u'][name].clone()
-					self.data['u'][name] = \
-							torch.max(self.data['u'][name], self.data['u_hat'][name])
-							
-					self.data['x'][name] = self.data['x'][name] - \
-							learning_rate*(self.data['m'][name] / \
-								torch.sqrt(self.data['u'][name]+self.eps))
-
-					# self.data['x'][name] = self.data['x'][name] - \
-					# 		learning_rate*(self.data['m'][name] / \
-					# 			torch.sqrt(self.data['u_prev'][name]+self.eps))
-					
-					if self.opt_compressor.get_name() != "none":
-
-
-						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
-						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
-
-
-
-						'''commenting these for reducing space consumption'''
-						#here we try doing sparse doing this little tweak:
-						# compress_final = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-						# self.data['delta'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
-
-						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta',name=name,comm_set=self.comm_set) 
-						#self.data['x'][name] = self.data['x'][name] + self.gamma*(self.data['delta'][name])
-
-						#\sum WjiXj - x_bar
 						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set)
 						self.data['x'][name] = self.data['x'][name]+self.gamma*(self.data['x_bar'][name]-self.data['x_bar_prev'][name])
 
@@ -717,87 +474,7 @@ class Optimizer(CommNet):
 					param.copy_(self.data['x'][name])
 					param.grad.copy_(self.data['g'][name])
 					self.steps += 1
-		
-		elif self.optim_name == "HeavyBall":
-			
-			self.epoch += 1
-			for name,param in self.model.named_parameters():
-				with torch.no_grad():
-					learning_rate = self.lr
-					if self.lr_decay == "cosine":
-						learning_rate = self.get_lr(self.steps)
-					
-					self.data['g_tilde'][name] = param.grad.data.detach().clone()
-					self.data['g'][name] = self.data['g'][name] - \
-							self.data['g_tilde_prev'][name] + self.data['g_tilde'][name]
-					self.data['g_tilde_prev'][name] = self.data['g_tilde'][name].clone()
 
-					if self.opt_compressor.get_name() !="none":
-
-						
-
-						compress_in = self.opt_compressor.compress(self.data['g'][name]-self.data['g_bar'][name])
-						self.data['g_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
-						self.data['g_bar_prev'][name] = self.data['g_bar'][name].clone()
-
-						#here we try doing sparse doing this little tweak:
-
-						compress_final = self.opt_compressor.compress(self.data['g'][name]-self.data['g_bar'][name])
-						self.data['delta_g'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
-
-						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_g',name=name,comm_set=self.comm_set) 
-						#self.data['g'][name] = self.data['g'][name] + self.gamma_g*(self.data['delta_g'][name])
-
-						self.neighbor_reduce_cond(field='g_bar',name=name,comm_set=self.comm_set)
-
-						self.data['g'][name] = self.data['g'][name]+self.gamma_g*(self.data['g_bar'][name]-self.data['g_bar_prev'][name])
-
-					else:
-						self.neighbor_reduce_cond(field='g',name=name,comm_set=self.comm_set)
-					
-					self.data['m'][name] = (self.beta1 * self.data['m'][name]) + \
-							((1-self.beta1) * self.data['g'][name])
-
-					self.data['x'][name] = (self.data['x'][name] - \
-							learning_rate*(self.data['m'][name]))
-
-					
-					if self.opt_compressor.get_name() != "none":
-
-						
-						#Q(x-x_)
-						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-
-						#x_ = x_{t} + Q(x-x_)
-	
-						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
-						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
-
-
-						#here we try doing sparse doing this little tweak:
-						compress_final = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-						self.data['delta_x'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
-
-						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_x',name=name,comm_set=self.comm_set) 
-						#self.data['x'][name] = self.data['x'][name] + self.gamma_x*(self.data['delta_x'][name])
-
-
-						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set) 
-						self.data['x'][name] = (self.data['x'][name]+self.gamma_x*(self.data['x_bar'][name]-self.data['x_bar_prev'][name]))
-				
-					else:
-						self.neighbor_reduce_cond(field='x',name=name,comm_set=self.comm_set)
-
-					
-					
-					param.copy_(self.data['x'][name])
-					param.grad.copy_(self.data['g'][name])
-					self.steps += 1
-					
 		elif self.optim_name == "AdamW":
 			
 			self.epoch += 1
@@ -830,59 +507,6 @@ class Optimizer(CommNet):
 					param.grad.copy_(self.data['g'][name])
 					self.steps += 1
 
-		elif self.optim_name == "NewAlg2":
-			
-			self.epoch += 1
-			for name,param in self.model.named_parameters():
-				with torch.no_grad():
-					learning_rate = self.lr
-					if self.lr_decay == "cosine":
-						learning_rate = self.get_lr(self.steps)
-					
-					self.data['g_tilde'][name] = param.grad.data.detach().clone()
-					self.data['g'][name] = self.data['g'][name] - \
-							self.data['g_tilde_prev'][name] + self.data['g_tilde'][name]
-					self.data['g_tilde_prev'][name] = self.data['g_tilde'][name].clone()
-					self.neighbor_reduce_cond(field='g',name=name,comm_set=self.comm_set)
-					
-					self.data['u_prev'][name] = self.data['u_hat'][name].clone()
-
-					self.data['m'][name] = (self.beta1 * self.data['m'][name]) + \
-							((1-self.beta1) * self.data['g'][name])
-					self.data['u_hat'][name] = self.beta2*self.data['u_hat'][name] + \
-							((1-self.beta2) * (self.data['g'][name] * self.data['g'][name]))
-					
-					self.neighbor_reduce_cond(field='v', name=name, comm_set=self.comm_set)
-
-					# self.data['u'][name] = self.data['u'][name] - self.data['v_prev'][name] +\
-					# self.data['v'][name]
-					self.data['u'][name] = self.data['u'][name] - self.data['u_prev'][name] + self.data['u_hat'][name]
-					self.neighbor_reduce_cond(field='u', name=name, comm_set=self.comm_set)
-
-					#self.data['u'][name] = \
-						#	torch.max(self.data['u'][name], self.data['u_hat'][name])
-							
-					self.data['x'][name] = self.data['x'][name] - \
-							learning_rate*(self.data['m'][name] / \
-								torch.sqrt(self.data['u'][name]+self.eps))
-
-
-					if self.opt_compressor.get_name() != "none":
-						# print(self.data['x_bar'])
-						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-						# print(compress_in)
-						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
-						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
-						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set) 
-						self.data['x'][name] = self.data['x'][name]+self.gamma*(self.data['x_bar'][name]-self.data['x_bar_prev'][name])
-
-					else:
-						self.neighbor_reduce_cond(field='x',name=name,comm_set=self.comm_set)
-
-					param.copy_(self.data['x'][name])
-					param.grad.copy_(self.data['g'][name])
-					self.steps += 1
-
 		elif self.optim_name == "CDProxSGT":
 			
 			self.epoch += 1
@@ -904,15 +528,10 @@ class Optimizer(CommNet):
 						self.data['g_bar_prev'][name] = self.data['g_bar'][name].clone()
 
 						#here we try doing sparse doing this little tweak:
-
 						compress_final = self.opt_compressor.compress(self.data['g'][name]-self.data['g_bar'][name])
 						self.data['delta_g'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
 
 						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_g',name=name,comm_set=self.comm_set) 
-						#self.data['g'][name] = self.data['g'][name] + self.gamma_g*(self.data['delta_g'][name])
-
 						self.neighbor_reduce_cond(field='g_bar',name=name,comm_set=self.comm_set)
 
 						self.data['g'][name] = self.data['g'][name]+self.gamma_g*(self.data['g_bar'][name]-self.data['g_bar_prev'][name])
@@ -924,7 +543,7 @@ class Optimizer(CommNet):
 									  ,torch.zeros_like(self.data['x'][name])) * torch.sign(self.data['x'][name] - learning_rate*(self.data['g'][name]))
 				
 					if self.opt_compressor.get_name() != "none":
-						
+
 						#Q(x-x_)
 						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
 
@@ -933,24 +552,16 @@ class Optimizer(CommNet):
 						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
 						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
 
-
 						#here we try doing sparse doing this little tweak:
 						compress_final = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
 						self.data['delta_x'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
 
 						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_x',name=name,comm_set=self.comm_set) 
-						#self.data['x'][name] = self.data['x'][name] + self.gamma_x*(self.data['delta_x'][name])
-
-
-						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set) 
+						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set)
 						self.data['x'][name] = (self.data['x'][name]+self.gamma_x*(self.data['x_bar'][name]-self.data['x_bar_prev'][name]))
 				
 					else:
 						self.neighbor_reduce_cond(field='x',name=name,comm_set=self.comm_set)
-
-					
 					
 					param.copy_(self.data['x'][name])
 					param.grad.copy_(self.data['g'][name])
@@ -982,73 +593,8 @@ class Optimizer(CommNet):
 						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
 
 						#x_ = x_{t} + Q(x-x_)
-
 						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
 						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
-
-
-						#here we try doing sparse doing this little tweak:
-						compress_final = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-						self.data['delta_x'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
-
-						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_x',name=name,comm_set=self.comm_set) 
-						#self.data['x'][name] = self.data['x'][name] + self.gamma_x*(self.data['delta_x'][name])
-
-						self.neighbor_reduce_cond(field='x_bar',name=name,comm_set=self.comm_set) 
-						self.data['x'][name] = (self.data['x'][name]+self.gamma_x*(self.data['x_bar'][name]-self.data['x_bar_prev'][name]))
-				
-					else:
-						self.neighbor_reduce_cond(field='x',name=name,comm_set=self.comm_set)
-
-					
-					param.copy_(self.data['x'][name])
-					param.grad.copy_(self.data['g'][name])
-					self.steps += 1
-
-		elif self.optim_name == "DoCoM":
-			
-			self.epoch += 1
-
-			# we know we have the previous batch, so we can just get that batch
-			# DoCoM only! This is to save the previous model params after update because or computation depends on this.
-			if self.epoch > 2:
-				self.model_prev.zero_grad()
-				self.model_prev.train()
-				if self.model_name == "nanoGPT":
-					output,loss = self.model_prev(data,target)
-				else:
-					output = self.model_prev(data)
-					loss = loss_fcn(output,target)
-				loss.backward() # does the backpropgation 
-
-				for name,param in self.model_prev.named_parameters():
-					self.data['g_mod'][name] =  param.grad.data.detach().clone()
-
-
-			#now we create a copy of the model 
-			self.model_prev = deepcopy(self.model)
-
-
-			for name,param in self.model.named_parameters():
-				with torch.no_grad():
-					learning_rate = self.lr
-					if self.lr_decay == "cosine":
-						learning_rate = self.get_lr(self.steps)
-
-
-					self.data['x'][name] = (self.data['x'][name] - \
-							learning_rate*(self.data['g'][name]))
-
-					
-					if self.opt_compressor.get_name() != "none":
-						#Q(x-x_)
-						compress_in = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
-						#x_ = x_{t} + Q(x-x_)
-						self.data['x_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
-						self.data['x_bar_prev'][name] = self.data['x_bar'][name].clone()
-
 
 						#here we try doing sparse doing this little tweak:
 						compress_final = self.opt_compressor.compress(self.data['x'][name]-self.data['x_bar'][name])
@@ -1061,47 +607,12 @@ class Optimizer(CommNet):
 				
 					else:
 						self.neighbor_reduce_cond(field='x',name=name,comm_set=self.comm_set)
-					
-					#here is where we want to compute the gradients from the previous model
-					self.data['g'][name] = param.grad.data.detach().clone()
-
-					#here m, is the equivalent in v in the paper
-					self.data['m'][name] = (self.beta1 * self.data['g'][name]) + \
-							((1-self.beta1) * (self.data['m_prev'][name]+self.data['g'][name]-self.data['g_mod'][name]))
-
-					self.data['g'][name] = self.data['g'][name] + (self.data['m'][name]-self.data['m_prev'][name])
-					
-					self.data['m_prev'][name] = self.data['m'][name].clone()
-
-					if self.opt_compressor.get_name() !="none":
-
-
-						compress_in = self.opt_compressor.compress(self.data['g'][name]-self.data['g_bar'][name])
-						self.data['g_bar'][name] += self.opt_compressor.decompress(compress_in[1:])
-						self.data['g_bar_prev'][name] = self.data['g_bar'][name].clone()
-
-						#here we try doing sparse doing this little tweak:
-
-						compress_final = self.opt_compressor.compress(self.data['g'][name]-self.data['g_bar'][name])
-						
-						#self.data['delta_g'][name] = self.opt_compressor.decompress(compress_final[1:])
-						
-
-						#\sum WjiQ(xj-xj_)
-						#self.neighbor_reduce_cond(field='delta_g',name=name,comm_set=self.comm_set) 
-						#self.data['g'][name] = self.data['g'][name] + self.gamma_g*(self.data['delta_g'][name])
-
-						self.neighbor_reduce_cond(field='g_bar',name=name,comm_set=self.comm_set)
-
-						self.data['g'][name] = self.data['g'][name]+self.gamma_g*(self.data['g_bar'][name]-self.data['g_bar_prev'][name])
-
-					else:
-						self.neighbor_reduce_cond(field='g',name=name,comm_set=self.comm_set)
 
 					param.copy_(self.data['x'][name])
 					param.grad.copy_(self.data['g'][name])
 					self.steps += 1
-						
+
+
 					
 	'''
     Performs a conditional neighbor_reduce() from CommNet for the given variable.

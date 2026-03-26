@@ -97,6 +97,75 @@ class DistDataModel():
 			end         = len(all_indices) if split_idx == splits_per_class - 1 else (start + chunk_size)
 			idx         = all_indices[start:end]
 
+		elif variety == "dirichlet":
+			# Dirichlet concentration parameter:
+			# small alpha => stronger label skew; large alpha => closer to IID
+			alpha = getattr(self, "dirichlet_alpha", 1.0)
+
+			seed = getattr(self, "seed", 0)
+			rng = np.random.RandomState(seed)
+
+			# Labels
+			if hasattr(self.train_dataset, "targets"):
+				targets = np.asarray(self.train_dataset.targets)
+			elif hasattr(self.train_dataset, "labels"):
+				targets = np.asarray(self.train_dataset.labels)
+			else:
+				targets = np.asarray([self.train_dataset[i][1] for i in range(len(self.train_dataset))])
+
+			class_num = len(self.train_dataset.classes)
+
+			# Indices per class
+			idx_by_class = [np.where(targets == c)[0].tolist() for c in range(class_num)]
+			for c in range(class_num):
+				rng.shuffle(idx_by_class[c])
+
+			# Allocate into per-rank buckets
+			buckets = [[] for _ in range(self.nprocs)]
+
+			for c in range(class_num):
+				cls_idx = idx_by_class[c]
+				n_c = len(cls_idx)
+				if n_c == 0:
+					continue
+
+				# True Dirichlet draw over ranks
+				proportions = rng.dirichlet([alpha] * self.nprocs)
+
+				# Convert proportions -> integer counts summing to n_c
+				raw = proportions * n_c
+				counts = np.floor(raw).astype(int)
+				remainder = n_c - counts.sum()
+
+				# Distribute remainder by largest fractional parts (Hamilton method)
+				if remainder > 0:
+					frac = raw - counts
+					for r in np.argsort(-frac)[:remainder]:
+						counts[r] += 1
+
+				# Slice indices into buckets
+				start = 0
+				for r in range(self.nprocs):
+					k = int(counts[r])
+					if k > 0:
+						buckets[r].extend(cls_idx[start:start + k])
+						start += k
+
+			# This rank's indices
+			idx = buckets[self.rank]
+
+			lengths = [len(buckets[r]) for r in range(self.nprocs)]
+			min_len = min(lengths)
+			target_len = (min_len // self.batch_size) * self.batch_size
+			if target_len == 0:
+				raise ValueError(
+					f"Dirichlet produced too few samples on some rank (min_len={min_len}). "
+					f"Increase alpha (less skew) or reduce batch_size."
+				)
+
+			rng.shuffle(idx)
+			idx = idx[:target_len]
+
 		else:
 			print("ERROR IN FORM LOADER (RANK: {}). INVALID VARIETY ({}).".format(self.rank,variety))
 
