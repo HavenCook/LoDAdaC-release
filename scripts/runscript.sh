@@ -22,7 +22,7 @@
 # module load knem
 
 # run your environment initialization script here
-# source conda_setup
+# source $conda_setup
 # conda activate LoDAdaC
 
 srun --cpu_bind=cores python3 -u -m scripts.experiment

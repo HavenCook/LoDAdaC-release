@@ -12,7 +12,7 @@ LoDAdaC-release/
 ├── models/             # model definitions
 ├── src/                # source code
 ├── scripts/            # job scripts / utilities
-├── data/               # input training data 
+├── data/               # input training data
 ├── requirements.txt    # core Python dependencies
 ├── INSTALL.md          # detailed setup instructions
 └── README.md
@@ -27,18 +27,11 @@ LoDAdaC-release/
 ## Quick Start
 
 ```
-git clone git@github.com:HavenCook/LoDAdaC-release.git
+git clone https://github.com/HavenCook/LoDAdaC-release.git
 cd LoDAdaC-release
-
-# Create environment
-conda create -n myenv python=3.9
-conda activate myenv
-
-# Install core dependencies
-pip install -r requirements.txt
 ```
 
-Then follow INSTALL.md for MPI and PyTorch setup. Once that is done, modify scripts/runscript.sh to load modules and the correct environment.
+Then follow INSTALL.md. Once that is done, modify scripts/runscript.sh to load modules and the correct environment, and scripts/experiment.py to set the input parameters.
 
 ```
 sbatch scripts/runscript.sh
